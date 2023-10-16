@@ -3,13 +3,15 @@
 layout (location = 0) out vec4 fragColor;
 
 in vec2 fragPos;
+in vec2 uv;
 
 #define PI 3.14159265359
 
 uniform float time;
 uniform vec3 camera_pos;
 uniform vec3 camera_rotation;
-//uniform mat3 view_matrix;
+//uniform sampler2D texture_0;
+uniform sampler2D sky_texture;
 
 mat3 rotation(int axis,float angle){
     switch (axis){
@@ -153,7 +155,6 @@ vec3 raymarch(vec3 position,vec3 direction,bool blinn){
     //vec3 light_dir = normalize(vec3(1,1,-1));
     vec3 light_pos = vec3(2,5,2);
     vec3 light_color = vec3(1,1,1);
-    //light_color = 0.9 + 0.1*cos(vec3(time,time,time)+vec3(0,2,4));
 
     vec3 plane_color1 = vec3(0.8,0.8,0.8);
     vec3 plane_color2 = vec3(0.2,0.2,0.2);
@@ -161,6 +162,8 @@ vec3 raymarch(vec3 position,vec3 direction,bool blinn){
 
     float smallest_dist = infinity;
     float outline_min_dist = 0.04;
+
+    float density = 0.017;
     while (dist < infinity){
         min_dist = sdf(vec3(0,0,1),position+direction*dist);
         min_dist2 = sdf_floor(vec3(0,-2,1),position+direction*dist);
@@ -195,30 +198,38 @@ vec3 raymarch(vec3 position,vec3 direction,bool blinn){
             }
             //phong shader end
             float in_shadow = shadow(position+direction*dist,light_dir,0.01,distance(position+direction*dist,light_pos),8);
-            float density = 0.017;
             float fog = 1/exp(pow(dist * density,2));//distance fog so infinite plane just nicely disappears
+
+            float sphere_uv_x = atan(direction.z,direction.x)/(2*PI);
+            float sphere_uv_y = atan(direction.y,sqrt(pow(direction.z,2)+pow(direction.x,2)))/(PI)+0.5;
+            vec3 fog_color = texture2D(sky_texture,vec2(-sphere_uv_x,-sphere_uv_y)).rgb;
             if(min_dist>min_dist2){//to have the little outlien even if there is a plane
                 if (smallest_dist<=outline_min_dist){
                     vec3 point = normalize(position+direction*dist);
                     vec3 col = 0.5 + 0.5*cos(vec3(time,time,time)+point.xyz+vec3(0,2,4));
-                    return col*fog;
+                    return col*fog+(1-fog)*fog_color;
                 }
                 vec3 fragPosition = position+direction*dist;
                 float total = floor(fragPosition.x) +
                               floor(fragPosition.z);
                 bool isEven = mod(total, 2.0) == 0.0;
-                return (ambient+(diffuse+specular)*in_shadow)*((isEven) ? plane_color1 : plane_color2)*fog;
+                return (ambient+(diffuse+specular)*in_shadow)*((isEven) ? plane_color1 : plane_color2)*fog+(1-fog)*fog_color;
             }
-            return (ambient+(diffuse+specular)*in_shadow)*default_color*fog;//multiply with floot in_shadow which is 0 if there are any collision,so the less shadowy a point is the more diffuse and spec it gets
+            return (ambient+(diffuse+specular)*in_shadow)*default_color*fog+(1-fog)*fog_color;//multiply with floot in_shadow which is 0 if there are any collision,so the less shadowy a point is the more diffuse and spec it gets
             //return norm;
         };
     };
+    float sphere_uv_x = atan(direction.z,direction.x)/(2*PI);
+    float sphere_uv_y = atan(direction.y,sqrt(pow(direction.z,2)+pow(direction.x,2)))/(PI)+0.5;
+    vec3 fog_color = texture2D(sky_texture,vec2(-sphere_uv_x,-sphere_uv_y)).rgb;
+    float fog = 1/exp(pow(dist * density,2));
     if (smallest_dist<=outline_min_dist){
         vec3 point = normalize(position+direction*dist);
         vec3 col = 0.5 + 0.5*cos(vec3(time,time,time)+point.xyz+vec3(0,2,4));
-        return col;
+        return col*fog+(1-fog)*fog_color;
     }else{
-    return vec3(0,0,0);
+
+    return fog_color;
     }
 };
 
@@ -226,5 +237,6 @@ void main(){
     //vec3 camera_pos = vec3(0,0,-1);
     float cam_to_screen = 0.9;
     vec3 pos = vec3(fragPos.x,fragPos.y,cam_to_screen)*rotation(0,camera_rotation.x)*rotation(1,camera_rotation.y)*rotation(2,camera_rotation.z)+camera_pos;
+    //vec3 texture_col = texture(texture_0,uv).rgb;
     fragColor = vec4(raymarch(pos,normalize(pos-camera_pos),false),1.0);//the bool false determines wether or not phong or blinn phong is used
 }

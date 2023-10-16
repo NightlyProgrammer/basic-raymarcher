@@ -19,10 +19,10 @@ ctx = moderngl.create_context()
 clock = pygame.time.Clock()
 
 quad_vertex_data = np.array([
-    (-1.0, 1),
-    (-1.0, -1.0),
-    (1.0, 1.0),
-    (1.0,-1.0)
+    (-1.0, 1, 0,1),
+    (-1.0, -1.0, 0,0),
+    (1.0, 1.0, 1,1),
+    (1.0,-1.0, 1,0)
 
 ],dtype="f4")
 quad_vertex_buffer = ctx.buffer(quad_vertex_data)
@@ -34,7 +34,7 @@ with open("fragment_shader.frag","r") as file:
 
 program = ctx.program(vertex_shader=vert,fragment_shader=frag)
 
-vao = ctx.vertex_array(program,[(quad_vertex_buffer,"2f","in_position")])
+vao = ctx.vertex_array(program,[(quad_vertex_buffer,"2f 2f","in_position","in_texcoord")])
 
 class Camera:
     def __init__(self,start_position):
@@ -72,6 +72,23 @@ class Camera:
 camera = Camera(glm.vec3(0,2,-2))
 delta = 0
 #fullscreen = False
+#for tomorrow read current image and use it as a texture to mix with color for motion blur
+"""lastframe_texture = ctx.texture((1280,720),3)
+lastframe_texture.write(ctx.read())
+lastframe_texture.use(0)
+program["texture_0"] = 0"""
+
+def load_texture(path):
+    surface = pygame.image.load(path).convert()
+    new_texture = ctx.texture(surface.get_size(),4)
+    new_texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
+    new_texture.swizzle = 'BGRA'
+    new_texture.write(surface.get_view('1'))
+    return new_texture
+
+sky_texture = load_texture("kloofendal_48d_partly_cloudy_puresky_4k (1).png")
+sky_texture.use(0)
+program["sky_texture"] = 0
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
@@ -102,4 +119,5 @@ while True:
 
     pygame.display.flip()
     pygame.display.set_caption(str(round(clock.get_fps())))
+    #lastframe_texture.write(ctx.read())
     delta = clock.tick(60)*0.001
