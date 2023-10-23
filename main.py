@@ -2,6 +2,8 @@ import pygame
 import moderngl
 import numpy as np
 import glm
+
+#import OpenEXR
 #mabye add motion blur
 #have a buffer with the last frame
 #render the last buffer and then render the new image on top with 0.75 alpha
@@ -45,23 +47,26 @@ class Camera:
         #key input
         keys = pygame.key.get_pressed()
 
+        speed = self.speed
+        if keys[pygame.K_r]:
+            speed *= 2
         if keys[pygame.K_w]:
-            self.pos.x += glm.sin(self.rotation.y)*delta*self.speed
-            self.pos.z += glm.cos(self.rotation.y)*delta*self.speed
+            self.pos.x += glm.sin(self.rotation.y)*delta*speed
+            self.pos.z += glm.cos(self.rotation.y)*delta*speed
         if keys[pygame.K_s]:
-            self.pos.x -= glm.sin(self.rotation.y)*delta*self.speed
-            self.pos.z -= glm.cos(self.rotation.y)*delta*self.speed
+            self.pos.x -= glm.sin(self.rotation.y)*delta*speed
+            self.pos.z -= glm.cos(self.rotation.y)*delta*speed
         if keys[pygame.K_a]:
-            self.pos.x += glm.sin(self.rotation.y-glm.radians(90))*delta*self.speed
-            self.pos.z += glm.cos(self.rotation.y-glm.radians(90))*delta*self.speed
+            self.pos.x += glm.sin(self.rotation.y-glm.radians(90))*delta*speed
+            self.pos.z += glm.cos(self.rotation.y-glm.radians(90))*delta*speed
         if keys[pygame.K_d]:
-            self.pos.x += glm.sin(self.rotation.y+glm.radians(90))*delta*self.speed
-            self.pos.z += glm.cos(self.rotation.y+glm.radians(90))*delta*self.speed
+            self.pos.x += glm.sin(self.rotation.y+glm.radians(90))*delta*speed
+            self.pos.z += glm.cos(self.rotation.y+glm.radians(90))*delta*speed
 
         if keys[pygame.K_SPACE]:
-            self.pos.y += delta*self.speed
+            self.pos.y += delta*speed
         if keys[pygame.K_LSHIFT]:
-            self.pos.y -= delta*self.speed
+            self.pos.y -= delta*speed
         #mouse input(moving the camera)
         mouse_x_mov,mouse_y_mov = pygame.mouse.get_rel()
         self.rotation.y += glm.radians(mouse_x_mov)*delta*self.speed
@@ -73,10 +78,6 @@ camera = Camera(glm.vec3(0,2,-2))
 delta = 0
 #fullscreen = False
 #for tomorrow read current image and use it as a texture to mix with color for motion blur
-"""lastframe_texture = ctx.texture((1280,720),3)
-lastframe_texture.write(ctx.read())
-lastframe_texture.use(0)
-program["texture_0"] = 0"""
 
 def load_texture(path):
     surface = pygame.image.load(path).convert()
@@ -89,6 +90,11 @@ def load_texture(path):
 sky_texture = load_texture("kloofendal_48d_partly_cloudy_puresky_4k (1).png")
 sky_texture.use(0)
 program["sky_texture"] = 0
+
+lastframe_texture = ctx.texture((1280,720),3)
+lastframe_texture.write(ctx.screen.read())
+lastframe_texture.use(1)
+program["last_frame_texture"] = 1
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
@@ -114,10 +120,14 @@ while True:
     program["size"] = pygame.display.get_window_size()
     program["time"] = pygame.time.get_ticks()*0.001
     program["camera_pos"] = camera.pos
-    program["camera_rotation"].write(camera.rotation)
+    program["camera_rotation"] = camera.rotation
+
+   
     vao.render(mode=moderngl.TRIANGLE_STRIP)
 
     pygame.display.flip()
     pygame.display.set_caption(str(round(clock.get_fps())))
-    #lastframe_texture.write(ctx.read())
+    lastframe_texture.write(ctx.screen.read())
+    lastframe_texture.use(1)
+    program["last_frame_texture"] = 1
     delta = clock.tick(60)*0.001
