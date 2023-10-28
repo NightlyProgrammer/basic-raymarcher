@@ -91,10 +91,14 @@ sky_texture = load_texture("kloofendal_48d_partly_cloudy_puresky_4k (1).png")
 sky_texture.use(0)
 program["sky_texture"] = 0
 
-lastframe_texture = ctx.texture((1280,720),3)
-lastframe_texture.write(ctx.screen.read())
-lastframe_texture.use(1)
-program["last_frame_texture"] = 1
+##lastframe_texture = ctx.texture((1280,720),3),enable all the lines with a double # if you want to use motion blur
+##lastframe_texture.write(ctx.screen.read())
+##lastframe_texture.use(1)
+##program["last_frame_texture"] = 1
+
+normal_texture = load_texture("2048px-Normal_map_example_-_Map.png")
+normal_texture.use(1)
+program["normal_tex"] = 1
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
@@ -127,7 +131,7 @@ while True:
 
     pygame.display.flip()
     pygame.display.set_caption(str(round(clock.get_fps())))
-    lastframe_texture.write(ctx.screen.read())
-    lastframe_texture.use(1)
-    program["last_frame_texture"] = 1
+    ##lastframe_texture.write(ctx.screen.read())
+    ##lastframe_texture.use(1)
+    ##program["last_frame_texture"] = 1
     delta = clock.tick(60)*0.001

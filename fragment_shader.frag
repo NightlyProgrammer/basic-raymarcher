@@ -12,7 +12,8 @@ uniform vec3 camera_pos;
 uniform vec3 camera_rotation;
 
 uniform sampler2D sky_texture;
-uniform sampler2D last_frame_texture;
+uniform sampler2D normal_tex;
+//uniform sampler2D last_frame_texture;
 
 mat3 rotation(int axis,float angle){
     switch (axis){
@@ -93,12 +94,13 @@ float smin(float a, float b, float k) {
 float smax(float a,float b,float k){
     return smin(a,b,-k);
 };
+
 float sdf(vec3 pos1,vec3 pos2){
     float d1 = round_box_sdf(pos2-pos1,vec3(1,1,1),0.2);
     float d2 = torus_sdf(pos2-(pos1+vec3(sin(time)+1,0,0)),vec2(1,0.45));
     float d3 = sphere_sdf(pos1+vec3(0.7,(sin(time*0.25)+1.5),-0.7),pos2);
 
-    float d4 = box_sdf((pos2-(pos1+vec3(10,-0.5,5))),vec3(1,1,1));
+    float d4 = box_sdf((pos2-(pos1+vec3(10,-0.5,5)))*rotation(1,time),vec3(1,1,1));
     float d5 = cut_hollow_sphere_sdf(rotation(0,45)*rotation(1,-45)*(pos2-(pos1+vec3(10,-1,-5))),1,0.6,0.1);
     return min(min(smax(smin(d1,d2,0.3),-d3,0.05),d4),d5);
 };
@@ -159,7 +161,7 @@ vec3 raymarch(vec3 position,vec3 direction,bool blinn){
 
     vec3 plane_color1 = vec3(0.8,0.8,0.8);
     vec3 plane_color2 = vec3(0.2,0.2,0.2);
-    vec3 default_color = vec3(0.8,0.8,0.8);
+    vec3 default_color = vec3(1,1,1);//vec3(0.8,0.8,0.8);
 
     float smallest_dist = infinity;
     float outline_min_dist = 0.03;
@@ -173,11 +175,21 @@ vec3 raymarch(vec3 position,vec3 direction,bool blinn){
             smallest_dist = min_dist;
         }
         if (min(min_dist,min_dist2) <= collision_dist){
-            //phong shader
-            vec3 norm = normal(vec3(position+direction*dist),min_dist,min_dist2);
-            vec3 light_dir = normalize(light_pos-vec3(position+direction*dist));// calc light dir if you use light with pos ,if youre using direcitonal light just comment this line out
             
-            float diff = max(dot(norm, light_dir), 0.0);
+            vec3 hit_point = position+direction*dist;
+            vec3 norm = normal(hit_point,min_dist,min_dist2);
+            //get texture color at uv coord
+            vec3 colorXY,colorYZ,colorXZ;
+            colorXY = texture2D(normal_tex,hit_point.xy).rgb;
+            colorYZ = texture2D(normal_tex,hit_point.yz).rgb;
+            colorXZ = texture2D(normal_tex,hit_point.xz).rgb;
+            vec3 texture_color = colorXY*abs(norm.z)+colorYZ*abs(norm.x)+colorXZ*abs(norm.y);
+            vec3 texture_norm = texture_color*norm;//convert from object tangen space coords to world coords
+
+            //phong shader
+            vec3 light_dir = normalize(light_pos-hit_point);// calc light dir if you use light with pos ,if youre using direcitonal light just comment this line out
+            
+            float diff = max(dot(texture_norm, light_dir), 0.0);
             vec3 diffuse = diff*light_color;
 
             float ambient_strength = 0.2;
@@ -189,16 +201,16 @@ vec3 raymarch(vec3 position,vec3 direction,bool blinn){
             if(diff>0.0){
                 if (blinn){
                     vec3 halfwayDir = normalize(light_dir+direction);
-                    spec = pow(max(dot(norm, halfwayDir), 0.0), 16);
+                    spec = pow(max(dot(texture_norm, halfwayDir), 0.0), 16);
                 }else{
-                    vec3 reflectDir = reflect(-light_dir, norm);  
+                    vec3 reflectDir = reflect(-light_dir,texture_norm);  
                     spec = pow(max(dot(direction, reflectDir), 0.0), 16);
                 }
                 float specularStrength = 0.6;
                 specular = specularStrength * spec * light_color;
             }
             //phong shader end
-            float in_shadow = shadow(position+direction*dist,light_dir,0.01,min(distance(position+direction*dist,light_pos),infinity),8);
+            float in_shadow = shadow(hit_point,light_dir,0.01,min(distance(hit_point,light_pos),infinity),8);
             float fog = 1/exp(pow(pow(dist,1.16) * density,2));//distance fog so infinite plane just nicely disappears
             vec3 fog_color;
                 if(fog<1){
@@ -208,7 +220,7 @@ vec3 raymarch(vec3 position,vec3 direction,bool blinn){
                 }
             if(min_dist>min_dist2){//to have the little outlien even if there is a plane
                 if (smallest_dist<=outline_min_dist){
-                    vec3 point = normalize(position+direction*dist);
+                    vec3 point = normalize(hit_point);
                     vec3 col = 0.5 + 0.5*cos(vec3(time,time,time)+point.xyz+vec3(0,2,4));
                     return col*fog+(1-fog)*fog_color;
                 }
@@ -219,7 +231,6 @@ vec3 raymarch(vec3 position,vec3 direction,bool blinn){
                 return (ambient+(diffuse+specular)*in_shadow)*((isEven) ? plane_color1 : plane_color2)*fog+(1-fog)*fog_color;
             }
             return (ambient+(diffuse+specular)*in_shadow)*default_color*fog+(1-fog)*fog_color;//multiply with floot in_shadow which is 0 if there are any collision,so the less shadowy a point is the more diffuse and spec it gets
-            //return norm;
         };
     };
     float sphere_uv_x = atan(direction.z,direction.x)/(2*PI);
@@ -242,6 +253,10 @@ void main(){
     float cam_to_screen = 0.9;
     vec3 pos = vec3(fragPos.x,fragPos.y,cam_to_screen)*rotation(0,camera_rotation.x)*rotation(1,camera_rotation.y)*rotation(2,camera_rotation.z)+camera_pos;
     //vec3 texture_col = texture(texture_0,uv).rgb;
-    float opactiy = 0.75;//opacity to last screen for motion blur
-    fragColor = vec4(raymarch(pos,normalize(pos-camera_pos),false)*opactiy+texture2D(last_frame_texture,uv).rgb*(1-opactiy),1.0);//the bool false determines wether or not phong or blinn phong is used
+    //float opacity = 0.9;//opacity to last screen for motion blur
+    vec3 color = raymarch(pos,normalize(pos-camera_pos),false);
+    /*for(int i;i<3;i++){
+        color = color*opacity+texture2D(last_frame_texture[i],uv).rgb*(1-opacity)
+    }*/
+    fragColor = vec4(color,1);//vec4(color*opacity+texture2D(last_frame_texture,uv).rgb*(1-opacity),1.0);//the bool false determines wether or not phong or blinn phong is used
 }
