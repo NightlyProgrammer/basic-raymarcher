@@ -12,7 +12,7 @@ pygame.init()
 
 pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MAJOR_VERSION,3)
 pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MINOR_VERSION,3)
-pygame.display.set_mode((1280,720),pygame.OPENGL | pygame.DOUBLEBUF)# |pygame.RESIZABLE)
+pygame.display.set_mode((1280,720),pygame.OPENGL | pygame.DOUBLEBUF |pygame.RESIZABLE)
 
 #make mouse invisible and not able to move out of the window for later camera rotation
 pygame.mouse.set_visible(False)
@@ -98,7 +98,7 @@ program["sky_texture"] = 0
 
 normal_texture = load_texture("2048px-Normal_map_example_-_Map.png")
 normal_texture.use(1)
-program["normal_tex"] = 1
+#program["normal_tex"] = 1
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
